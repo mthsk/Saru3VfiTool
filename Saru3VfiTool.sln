@@ -1,0 +1,18 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{ACFA7BD8-CB04-4D27-B7C5-D7EDE8D50DC1}") = "Saru3VfiTool", "Saru3VfiTool.csproj", "{4C68B07A-2881-4F97-A94E-49E46C3D305F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C68B07A-2881-4F97-A94E-49E46C3D305F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C68B07A-2881-4F97-A94E-49E46C3D305F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C68B07A-2881-4F97-A94E-49E46C3D305F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C68B07A-2881-4F97-A94E-49E46C3D305F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
