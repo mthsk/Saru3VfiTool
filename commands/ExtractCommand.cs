@@ -7,6 +7,7 @@ using Saru3VfiTool.Compression;
 using Saru3VfiTool.Exdb;
 using Saru3VfiTool.Models;
 using Saru3VfiTool.Pck;
+using Saru3VfiTool.Subtitles;
 using Saru3VfiTool.Tim2;
 using Saru3VfiTool.Vfi;
 
@@ -20,7 +21,8 @@ public static class ExtractCommand
         { "i3c_s", "i3c" }
     };
 
-    public static void Run(string dataBinPath, string outputDir, bool keepPck, bool keepTim2, bool keepSz, bool keepExdb = false)
+    public static void Run(string dataBinPath, string outputDir, bool keepPck, bool keepTim2,
+        bool keepSz, bool keepExdb = false, bool keepTextBin = false, bool keepSbt = false)
     {
         Directory.CreateDirectory(outputDir);
         using var fs = File.OpenRead(dataBinPath);
@@ -122,6 +124,8 @@ public static class ExtractCommand
                           data[0] == 'T' && data[1] == 'I' && data[2] == 'M' && data[3] == '2';
             bool isExdb = data.Length >= 3 &&
                           data[0] == 'E' && data[1] == 'D' && data[2] == 'B';
+            bool isSubtitleText = SubtitleMagic.IsTextContainer(data);
+            bool isSubtitleTiming = SubtitleMagic.IsTimingContainer(data);
 
             if (!keepPck && isPck)
             {
@@ -183,6 +187,8 @@ public static class ExtractCommand
                     bool memberIsExdb = memberData.Length >= 3 &&
                                         memberData[0] == 'E' && memberData[1] == 'D' &&
                                         memberData[2] == 'B';
+                    bool memberIsSubtitleText = SubtitleMagic.IsTextContainer(memberData);
+                    bool memberIsSubtitleTiming = SubtitleMagic.IsTimingContainer(memberData);
 
                     if (!keepTim2 && memberIsTim2)
                     {
@@ -244,6 +250,36 @@ public static class ExtractCommand
                             File.WriteAllBytes(memberPath, memberData);
                         }
                     }
+                    else if (!keepTextBin && memberIsSubtitleText)
+                    {
+                        try
+                        {
+                            string subtitleJsonPath = memberPath + ".json";
+                            File.WriteAllText(subtitleJsonPath,
+                                JsonConvert.SerializeObject(SubtitleTextConverter.Read(memberData), Formatting.Indented));
+                            sourcePath = subtitleJsonPath;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  Warning: text BIN conversion failed for {pckEntry.Name}: {ex.Message}");
+                            File.WriteAllBytes(memberPath, memberData);
+                        }
+                    }
+                    else if (!keepSbt && memberIsSubtitleTiming)
+                    {
+                        try
+                        {
+                            string subtitleJsonPath = memberPath + ".json";
+                            File.WriteAllText(subtitleJsonPath,
+                                JsonConvert.SerializeObject(SubtitleTimingConverter.Read(memberData), Formatting.Indented));
+                            sourcePath = subtitleJsonPath;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  Warning: subtitle timing conversion failed for {pckEntry.Name}: {ex.Message}");
+                            File.WriteAllBytes(memberPath, memberData);
+                        }
+                    }
                     else
                     {
                         File.WriteAllBytes(memberPath, memberData);
@@ -288,6 +324,62 @@ public static class ExtractCommand
                 catch (Exception ex)
                 {
                     Console.WriteLine($"  Warning: EXDB conversion failed for {fullPath}: {ex.Message}");
+                    File.WriteAllBytes(outFilePath, data);
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, outFilePath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+            }
+            else if (!keepTextBin && isSubtitleText)
+            {
+                try
+                {
+                    string subtitleJsonPath = outFilePath + ".json";
+                    File.WriteAllText(subtitleJsonPath,
+                        JsonConvert.SerializeObject(SubtitleTextConverter.Read(data), Formatting.Indented));
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, subtitleJsonPath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  Warning: text BIN conversion failed for {fullPath}: {ex.Message}");
+                    File.WriteAllBytes(outFilePath, data);
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, outFilePath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+            }
+            else if (!keepSbt && isSubtitleTiming)
+            {
+                try
+                {
+                    string subtitleJsonPath = outFilePath + ".json";
+                    File.WriteAllText(subtitleJsonPath,
+                        JsonConvert.SerializeObject(SubtitleTimingConverter.Read(data), Formatting.Indented));
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, subtitleJsonPath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  Warning: subtitle timing conversion failed for {fullPath}: {ex.Message}");
                     File.WriteAllBytes(outFilePath, data);
                     manifest.Files.Add(new VfiFileManifest
                     {

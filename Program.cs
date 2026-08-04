@@ -79,6 +79,8 @@ internal static class Program
         bool convertTim2 = false;
         bool keepSz = false;
         bool keepExdb = false;
+        bool keepTextBin = false;
+        bool keepSbt = false;
         var positional = new List<string>();
 
         for (int i = 1; i < args.Length; i++)
@@ -97,6 +99,12 @@ internal static class Program
                 case "--keep-exdb":
                     keepExdb = true;
                     break;
+                case "--keep-text-bin":
+                    keepTextBin = true;
+                    break;
+                case "--keep-sbt":
+                    keepSbt = true;
+                    break;
                 default:
                     positional.Add(args[i]);
                     break;
@@ -104,9 +112,10 @@ internal static class Program
         }
 
         if (positional.Count < 2)
-            throw new ArgumentException("Usage: extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] <DATA.BIN> <output_dir>");
+            throw new ArgumentException("Usage: extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] [--keep-text-bin] [--keep-sbt] <DATA.BIN> <output_dir>");
 
-        ExtractCommand.Run(positional[0], positional[1], keepPck, keepTim2: !convertTim2, keepSz: keepSz, keepExdb: keepExdb);
+        ExtractCommand.Run(positional[0], positional[1], keepPck, keepTim2: !convertTim2,
+            keepSz: keepSz, keepExdb: keepExdb, keepTextBin: keepTextBin, keepSbt: keepSbt);
     }
 
     private static void RequireArgumentCount(string[] args, int minimum, string usage)
@@ -117,19 +126,20 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Saru3VfiTool - Ape Escape 3 / Saru! Get You! 3 (サルゲッチュ3)");
-        Console.WriteLine("Build 2026.08.02");
+        Console.WriteLine("Saru3VfiTool - The Swiss Army Knife of Ape Escape 3 / Saru! Get You! 3 (サルゲッチュ3) modding.");
+        Console.WriteLine("Build 2026.08.04");
         Console.WriteLine();
         Console.WriteLine("Drag one or more supported files/directories onto the executable, or use:");
         Console.WriteLine("  Saru3VfiTool process <input> [output]");
-        Console.WriteLine("  Saru3VfiTool extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] <DATA.BIN> <output_dir>");
+        Console.WriteLine("  Saru3VfiTool extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] [--keep-text-bin] [--keep-sbt] <DATA.BIN> <output_dir>");
         Console.WriteLine("  Saru3VfiTool rebuild <databin.manifest.json> <output.bin>");
         Console.WriteLine();
         Console.WriteLine("Auto-detected round trips:");
         Console.WriteLine("  .tm2 <-> .tm2.json + PNG, .pck <-> .pck.json + directory");
         Console.WriteLine("  .sz <-> .sz.json + auto-converted payload, EXDB <-> .exdb.json");
+        Console.WriteLine("  typed text BIN <-> .bin.json, SBT timing <-> .sbt.json");
         Console.WriteLine("  DATA.BIN/VFI <-> databin.manifest.json");
         Console.WriteLine();
-        Console.WriteLine("License: GNU GPL v3");
+        Console.WriteLine("License: GNU GPL v3 (see LICENSE / https://www.gnu.org/licenses/gpl-3.0.html)");
     }
 }

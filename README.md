@@ -1,4 +1,4 @@
-# Ape Escape 3 / Saru! Get You! 3 VFI Tool
+# Saru 3 VFI Tool
 
 **The Swiss Army Knife of _Ape Escape 3_ / _Saru! Get You! 3 (サルゲッチュ3)_ modding.**
 
@@ -25,6 +25,8 @@ Requires the [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0
 | `.pck` | Loose members in `.pck.d` plus `.pck.json` | Drop the `.pck.json` sidecar or `.pck.d` directory |
 | `.tm2` | PNG, mipmap PNGs, and `.tm2.json` | Drop the `.tm2.json` sidecar or main PNG |
 | EXDB / EDB | Editable `.exdb.json` document | Drop the JSON document |
+| Typed text BIN (`0x72312487`) | Editable `.bin.json` groups, records, fields, and strings | Drop the JSON document |
+| Subtitle timing SBT (`sbt\0`) | Editable `.sbt.json` cue ranges | Drop the JSON document |
 | Other assets | Preserved as raw files inside extracted containers | Reinserted during rebuild |
 
 EXDB support is based on the self-describing EDB layout documented by `ae3-sdk/tools/ae3tools/exdb.py`: `s`, `f`, and `i` fields map to strings, little-endian `float32`, and little-endian `int32` values. The JSON stores the original header, raw record bytes, duplicate-field aliases, and trailing data to make round trips as conservative as possible.
@@ -46,6 +48,10 @@ file.sz           -> file + file.sz.json (+ inner sidecars when supported)
 file.sz.json      -> rebuilt inner format -> file.sz
 params.exdb       -> params.exdb.json
 params.exdb.json  -> params.exdb
+scene01.bin       -> scene01.bin.json
+scene01.bin.json  -> scene01.bin
+scene01.sbt       -> scene01.sbt.json
+scene01.sbt.json  -> scene01.sbt
 DATA.BIN          -> DATA.extracted/
 ```
 
@@ -75,7 +81,7 @@ Saru3VfiTool process params.exdb.json rebuilt.exdb
 ### Extract complete DATA.BIN
 
 ```bash
-Saru3VfiTool extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] <DATA.BIN> <output_dir>
+Saru3VfiTool extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] [--keep-text-bin] [--keep-sbt] <DATA.BIN> <output_dir>
 ```
 
 | Flag | Effect |
@@ -84,6 +90,8 @@ Saru3VfiTool extract [--tim2] [--keep-pck] [--keep-sz] [--keep-exdb] <DATA.BIN> 
 | `--keep-pck` | Leave `.pck` files as opaque blobs |
 | `--keep-sz` | Leave `.sz` files compressed |
 | `--keep-exdb` | Keep EXDB files binary instead of converting them to editable JSON |
+| `--keep-text-bin` | Keep typed text BIN files binary instead of converting them to editable JSON |
+| `--keep-sbt` | Keep SBT timing files binary instead of converting them to editable JSON |
 
 ```bash
 Saru3VfiTool extract --tim2 DATA.BIN ./extracted
@@ -119,8 +127,7 @@ Files can be moved together as a group because sidecar source paths are relative
 ## Important limitations
 
 1. **TIM2 conversion remains experimental.** Indexed textures may require quantization, and unusual CLUT modes, mipmaps, or flags should be tested in-game.
-2. **EXDB schemas are self-describing but not fully validated against game code.** The converter supports the observed `s`, `f`, and `i` field types. Keep backups before changing record counts or schema metadata.
-3. **Container rebuilds are structural, not guaranteed byte-identical.** PCK alignment and SZ DEFLATE output may differ while decoding to equivalent data.
+2. **Container rebuilds are structural, not guaranteed byte-identical.** PCK alignment and SZ DEFLATE output may differ while decoding to equivalent data.
 4. **Complete VFI rebuilds still depend on the generated manifest and directory structure.** Avoid renaming or deleting extracted paths unless you understand the archive references.
 
 ---
@@ -140,7 +147,7 @@ Dependencies are restored through NuGet:
 
 ## License
 
-GNU GPL v3. See [LICENSE](LICENSE).
+GNU GPL v3. See [LICENSE](LICENSE) or <https://www.gnu.org/licenses/gpl-3.0.html>.
 
 ---
 
@@ -148,4 +155,4 @@ GNU GPL v3. See [LICENSE](LICENSE).
 
 - **aluigi** — independent VFI research (`ape_escape_vfi.bms`)
 - **Durik256 / ZenHAX / ResHax** — I3D format research and Noesis tooling
-- **[@pxdl](https://github.com/pxdl)** — decompilation research and the EXDB parser used as the format reference
+- **[@pxdl](https://github.com/pxdl)** — decompilation research, none of this would've been possible without him

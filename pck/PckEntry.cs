@@ -22,12 +22,4 @@ public class PckEntry
             Size = br.ReadUInt32(),
         };
     }
-
-    public void Write(BinaryWriter bw)
-    {
-        bw.Write(NameOff);
-        bw.Write(AttrOff);
-        bw.Write(Offset);
-        bw.Write(Size);
-    }
 }

@@ -8,6 +8,7 @@ using Saru3VfiTool.Compression;
 using Saru3VfiTool.Exdb;
 using Saru3VfiTool.Models;
 using Saru3VfiTool.Pck;
+using Saru3VfiTool.Subtitles;
 using Saru3VfiTool.Tim2;
 using Saru3VfiTool.Vfi;
 
@@ -49,6 +50,20 @@ public static class RebuildCommand
                 var exdbDocument = JsonConvert.DeserializeObject<ExdbDocument>(File.ReadAllText(sourcePath))
                     ?? throw new InvalidDataException($"Invalid EXDB sidecar: {sourcePath}");
                 data = ExdbConverter.Write(exdbDocument);
+            }
+            else if (sourcePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ReadJsonType(sourcePath), "text-bin", StringComparison.OrdinalIgnoreCase))
+            {
+                var subtitleDocument = JsonConvert.DeserializeObject<SubtitleTextDocument>(File.ReadAllText(sourcePath))
+                    ?? throw new InvalidDataException($"Invalid text BIN document: {sourcePath}");
+                data = SubtitleTextConverter.Write(subtitleDocument);
+            }
+            else if (sourcePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ReadJsonType(sourcePath), "subtitle-timing", StringComparison.OrdinalIgnoreCase))
+            {
+                var subtitleDocument = JsonConvert.DeserializeObject<SubtitleTimingDocument>(File.ReadAllText(sourcePath))
+                    ?? throw new InvalidDataException($"Invalid subtitle timing sidecar: {sourcePath}");
+                data = SubtitleTimingConverter.Write(subtitleDocument);
             }
             else
             {
@@ -321,6 +336,20 @@ public static class RebuildCommand
                         var exdbDocument = JsonConvert.DeserializeObject<ExdbDocument>(File.ReadAllText(memberSource))
                             ?? throw new InvalidDataException($"Invalid EXDB sidecar: {memberSource}");
                         data = ExdbConverter.Write(exdbDocument);
+                        break;
+                    }
+                    case "text-bin":
+                    {
+                        var subtitleDocument = JsonConvert.DeserializeObject<SubtitleTextDocument>(File.ReadAllText(memberSource))
+                            ?? throw new InvalidDataException($"Invalid text BIN document: {memberSource}");
+                        data = SubtitleTextConverter.Write(subtitleDocument);
+                        break;
+                    }
+                    case "subtitle-timing":
+                    {
+                        var subtitleDocument = JsonConvert.DeserializeObject<SubtitleTimingDocument>(File.ReadAllText(memberSource))
+                            ?? throw new InvalidDataException($"Invalid subtitle timing sidecar: {memberSource}");
+                        data = SubtitleTimingConverter.Write(subtitleDocument);
                         break;
                     }
                     default:

@@ -7,6 +7,7 @@ using Saru3VfiTool.Compression;
 using Saru3VfiTool.Exdb;
 using Saru3VfiTool.Models;
 using Saru3VfiTool.Pck;
+using Saru3VfiTool.Subtitles;
 using Saru3VfiTool.Tim2;
 
 namespace Saru3VfiTool.Commands;
@@ -72,11 +73,22 @@ public static class IndividualFileCommand
             UnpackExdb(inputPath, outputPath);
             return;
         }
+        if (SubtitleMagic.IsTextContainer(prefix))
+        {
+            UnpackSubtitleText(inputPath, outputPath);
+            return;
+        }
+        if (SubtitleMagic.IsTimingContainer(prefix))
+        {
+            UnpackSubtitleTiming(inputPath, outputPath);
+            return;
+        }
         if (prefix.Length >= 4 && prefix[0] == (byte)'V' && prefix[1] == (byte)'F' && prefix[2] == (byte)'I' && prefix[3] == 0)
         {
             string extractionDir = outputPath ?? Path.Combine(
                 Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(inputPath) + ".extracted");
-            ExtractCommand.Run(inputPath, extractionDir, keepPck: false, keepTim2: false, keepSz: false, keepExdb: false);
+            ExtractCommand.Run(inputPath, extractionDir, keepPck: false, keepTim2: false,
+                keepSz: false, keepExdb: false, keepTextBin: false, keepSbt: false);
             return;
         }
 
@@ -121,6 +133,12 @@ public static class IndividualFileCommand
                 break;
             case "exdb":
                 PackExdb(manifestPath, outputPath);
+                break;
+            case "text-bin":
+                PackSubtitleText(manifestPath, outputPath);
+                break;
+            case "subtitle-timing":
+                PackSubtitleTiming(manifestPath, outputPath);
                 break;
             case "vfimanifest":
                 RebuildCommand.Run(manifestPath, outputPath ?? Path.Combine(Path.GetDirectoryName(manifestPath)!, "DATA_REBUILT.BIN"));
@@ -265,6 +283,34 @@ public static class IndividualFileCommand
                     File.WriteAllBytes(memberPath, memberData);
                 }
             }
+            else if (SubtitleMagic.IsTextContainer(memberData))
+            {
+                try
+                {
+                    string subtitleJson = memberPath + ".json";
+                    File.WriteAllText(subtitleJson, JsonConvert.SerializeObject(SubtitleTextConverter.Read(memberData), JsonSettings));
+                    sourcePath = subtitleJson;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  Text BIN conversion skipped for {entry.Name}: {ex.Message}");
+                    File.WriteAllBytes(memberPath, memberData);
+                }
+            }
+            else if (SubtitleMagic.IsTimingContainer(memberData))
+            {
+                try
+                {
+                    string subtitleJson = memberPath + ".json";
+                    File.WriteAllText(subtitleJson, JsonConvert.SerializeObject(SubtitleTimingConverter.Read(memberData), JsonSettings));
+                    sourcePath = subtitleJson;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  Subtitle timing conversion skipped for {entry.Name}: {ex.Message}");
+                    File.WriteAllBytes(memberPath, memberData);
+                }
+            }
             else
             {
                 File.WriteAllBytes(memberPath, memberData);
@@ -362,6 +408,40 @@ public static class IndividualFileCommand
         Console.WriteLine($"EXDB rebuilt: {target}");
     }
 
+    private static void UnpackSubtitleText(string inputPath, string? outputPath)
+    {
+        SubtitleTextDocument document = SubtitleTextConverter.Read(File.ReadAllBytes(inputPath));
+        string target = outputPath ?? inputPath + ".json";
+        File.WriteAllText(target, JsonConvert.SerializeObject(document, JsonSettings));
+        Console.WriteLine($"Text BIN -> JSON: {target}");
+    }
+
+    private static void PackSubtitleText(string manifestPath, string? outputPath)
+    {
+        SubtitleTextDocument document = JsonConvert.DeserializeObject<SubtitleTextDocument>(File.ReadAllText(manifestPath))
+            ?? throw new InvalidDataException("Invalid text BIN JSON");
+        string target = outputPath ?? RemoveJsonSuffix(manifestPath);
+        File.WriteAllBytes(target, SubtitleTextConverter.Write(document));
+        Console.WriteLine($"Text BIN rebuilt: {target}");
+    }
+
+    private static void UnpackSubtitleTiming(string inputPath, string? outputPath)
+    {
+        SubtitleTimingDocument document = SubtitleTimingConverter.Read(File.ReadAllBytes(inputPath));
+        string target = outputPath ?? inputPath + ".json";
+        File.WriteAllText(target, JsonConvert.SerializeObject(document, JsonSettings));
+        Console.WriteLine($"Subtitle timing -> JSON: {target}");
+    }
+
+    private static void PackSubtitleTiming(string manifestPath, string? outputPath)
+    {
+        SubtitleTimingDocument document = JsonConvert.DeserializeObject<SubtitleTimingDocument>(File.ReadAllText(manifestPath))
+            ?? throw new InvalidDataException("Invalid subtitle timing JSON");
+        string target = outputPath ?? RemoveJsonSuffix(manifestPath);
+        File.WriteAllBytes(target, SubtitleTimingConverter.Write(document));
+        Console.WriteLine($"Subtitle timing rebuilt: {target}");
+    }
+
 
     private static string? ConvertNestedPayload(string payloadPath, byte[] data)
     {
@@ -380,10 +460,21 @@ public static class IndividualFileCommand
             UnpackExdb(payloadPath, null);
             return payloadPath + ".json";
         }
+        if (SubtitleMagic.IsTextContainer(data))
+        {
+            UnpackSubtitleText(payloadPath, null);
+            return payloadPath + ".json";
+        }
+        if (SubtitleMagic.IsTimingContainer(data))
+        {
+            UnpackSubtitleTiming(payloadPath, null);
+            return payloadPath + ".json";
+        }
         if (data.Length >= 4 && data[0] == (byte)'V' && data[1] == (byte)'F' && data[2] == (byte)'I' && data[3] == 0)
         {
             string extractionDir = payloadPath + ".extracted";
-            ExtractCommand.Run(payloadPath, extractionDir, keepPck: false, keepTim2: false, keepSz: false, keepExdb: false);
+            ExtractCommand.Run(payloadPath, extractionDir, keepPck: false, keepTim2: false,
+                keepSz: false, keepExdb: false, keepTextBin: false, keepSbt: false);
             return Path.Combine(extractionDir, "databin.manifest.json");
         }
         return null;
@@ -400,6 +491,8 @@ public static class IndividualFileCommand
             "pck" => BuildPckData(sourcePath),
             "sz" => BuildSzData(sourcePath),
             "exdb" => BuildExdbData(sourcePath),
+            "text-bin" => BuildSubtitleTextData(sourcePath),
+            "subtitle-timing" => BuildSubtitleTimingData(sourcePath),
             "vfimanifest" => BuildVfiData(sourcePath),
             string type => throw new InvalidDataException($"Unsupported nested JSON sidecar type '{type}' in {sourcePath}")
         };
@@ -440,6 +533,20 @@ public static class IndividualFileCommand
         ExdbDocument document = JsonConvert.DeserializeObject<ExdbDocument>(File.ReadAllText(manifestPath))
             ?? throw new InvalidDataException($"Invalid EXDB sidecar: {manifestPath}");
         return ExdbConverter.Write(document);
+    }
+
+    private static byte[] BuildSubtitleTextData(string manifestPath)
+    {
+        SubtitleTextDocument document = JsonConvert.DeserializeObject<SubtitleTextDocument>(File.ReadAllText(manifestPath))
+            ?? throw new InvalidDataException($"Invalid text BIN document: {manifestPath}");
+        return SubtitleTextConverter.Write(document);
+    }
+
+    private static byte[] BuildSubtitleTimingData(string manifestPath)
+    {
+        SubtitleTimingDocument document = JsonConvert.DeserializeObject<SubtitleTimingDocument>(File.ReadAllText(manifestPath))
+            ?? throw new InvalidDataException($"Invalid subtitle timing sidecar: {manifestPath}");
+        return SubtitleTimingConverter.Write(document);
     }
 
     private static byte[] BuildVfiData(string manifestPath)
