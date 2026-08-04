@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Saru3VfiTool.Compression;
+using Saru3VfiTool.Exdb;
 using Saru3VfiTool.Models;
 using Saru3VfiTool.Pck;
 using Saru3VfiTool.Tim2;
@@ -40,6 +42,13 @@ public static class RebuildCommand
                 string pngPath = Path.Combine(baseDir, tim2Manifest.Source.Replace('/', Path.DirectorySeparatorChar));
                 var tim2 = Tim2Converter.FromPng(pngPath, tim2Manifest);
                 data = Tim2Converter.WriteTim2(tim2);
+            }
+            else if (sourcePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ReadJsonType(sourcePath), "exdb", StringComparison.OrdinalIgnoreCase))
+            {
+                var exdbDocument = JsonConvert.DeserializeObject<ExdbDocument>(File.ReadAllText(sourcePath))
+                    ?? throw new InvalidDataException($"Invalid EXDB sidecar: {sourcePath}");
+                data = ExdbConverter.Write(exdbDocument);
             }
             else
             {
@@ -280,6 +289,9 @@ public static class RebuildCommand
             Console.WriteLine($"  Total size: {fs.Position} (original: {manifest.TotalSize.Value})");
     }
 
+    private static string ReadJsonType(string path) =>
+        JObject.Parse(File.ReadAllText(path)).Value<string>("type") ?? "";
+
     private static byte[] RebuildPck(string pckJsonPath, string baseDir)
     {
         var pckManifest = JsonConvert.DeserializeObject<PckManifest>(File.ReadAllText(pckJsonPath))!;
@@ -290,13 +302,30 @@ public static class RebuildCommand
             string memberSource = Path.Combine(baseDir, member.Source.Replace('/', Path.DirectorySeparatorChar));
             byte[] data;
 
-            if (memberSource.EndsWith(".json", StringComparison.OrdinalIgnoreCase) 
+            if (memberSource.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
                 && !memberSource.EndsWith(".pck.json", StringComparison.OrdinalIgnoreCase))
             {
-                var tim2Manifest = JsonConvert.DeserializeObject<Tim2Manifest>(File.ReadAllText(memberSource))!;
-                string pngPath = Path.Combine(baseDir, tim2Manifest.Source.Replace('/', Path.DirectorySeparatorChar));
-                var tim2 = Tim2Converter.FromPng(pngPath, tim2Manifest);
-                data = Tim2Converter.WriteTim2(tim2);
+                string sidecarType = ReadJsonType(memberSource);
+                switch (sidecarType.ToLowerInvariant())
+                {
+                    case "tim2":
+                    {
+                        var tim2Manifest = JsonConvert.DeserializeObject<Tim2Manifest>(File.ReadAllText(memberSource))!;
+                        string pngPath = Path.Combine(baseDir, tim2Manifest.Source.Replace('/', Path.DirectorySeparatorChar));
+                        var tim2 = Tim2Converter.FromPng(pngPath, tim2Manifest);
+                        data = Tim2Converter.WriteTim2(tim2);
+                        break;
+                    }
+                    case "exdb":
+                    {
+                        var exdbDocument = JsonConvert.DeserializeObject<ExdbDocument>(File.ReadAllText(memberSource))
+                            ?? throw new InvalidDataException($"Invalid EXDB sidecar: {memberSource}");
+                        data = ExdbConverter.Write(exdbDocument);
+                        break;
+                    }
+                    default:
+                        throw new InvalidDataException($"Unsupported PCK member sidecar type '{sidecarType}' in {memberSource}");
+                }
             }
             else
             {

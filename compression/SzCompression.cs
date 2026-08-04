@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
 
@@ -11,14 +12,18 @@ public static class SzCompression
         if (data.Length < 4)
             throw new InvalidDataException("SZ data too short");
 
-        uint decompressedSize = BitConverter.ToUInt32(data, 0);
+        uint decompressedSize = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(0, 4));
+        if (decompressedSize > int.MaxValue)
+            throw new InvalidDataException($"SZ output is too large: {decompressedSize} bytes");
 
-        using var input = new MemoryStream(data, 4, data.Length - 4);
+        using var input = new MemoryStream(data, 4, data.Length - 4, writable: false);
         using var deflate = new DeflateStream(input, CompressionMode.Decompress);
         using var output = new MemoryStream((int)decompressedSize);
-
         deflate.CopyTo(output);
-        var result = output.ToArray();
+
+        byte[] result = output.ToArray();
+        if (result.Length != decompressedSize)
+            throw new InvalidDataException($"SZ size mismatch: header says {decompressedSize}, stream produced {result.Length}");
 
         return result;
     }
@@ -26,15 +31,14 @@ public static class SzCompression
     public static byte[] Compress(byte[] data)
     {
         using var output = new MemoryStream();
-        using (var deflate = new DeflateStream(output, CompressionLevel.SmallestSize, true))
+        output.Write(new byte[4], 0, 4);
+        using (var deflate = new DeflateStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
         {
             deflate.Write(data, 0, data.Length);
         }
 
-        var compressed = output.ToArray();
-        var result = new byte[4 + compressed.Length];
-        BitConverter.GetBytes((uint)data.Length).CopyTo(result, 0);
-        compressed.CopyTo(result, 4);
+        byte[] result = output.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(0, 4), checked((uint)data.Length));
         return result;
     }
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
 using Saru3VfiTool.Compression;
+using Saru3VfiTool.Exdb;
 using Saru3VfiTool.Models;
 using Saru3VfiTool.Pck;
 using Saru3VfiTool.Tim2;
@@ -19,7 +20,7 @@ public static class ExtractCommand
         { "i3c_s", "i3c" }
     };
 
-    public static void Run(string dataBinPath, string outputDir, bool keepPck, bool keepTim2, bool keepSz)
+    public static void Run(string dataBinPath, string outputDir, bool keepPck, bool keepTim2, bool keepSz, bool keepExdb = false)
     {
         Directory.CreateDirectory(outputDir);
         using var fs = File.OpenRead(dataBinPath);
@@ -119,6 +120,8 @@ public static class ExtractCommand
                          outSubPath.EndsWith(".pck.sz", StringComparison.OrdinalIgnoreCase);
             bool isTim2 = data.Length >= 4 &&
                           data[0] == 'T' && data[1] == 'I' && data[2] == 'M' && data[3] == '2';
+            bool isExdb = data.Length >= 3 &&
+                          data[0] == 'E' && data[1] == 'D' && data[2] == 'B';
 
             if (!keepPck && isPck)
             {
@@ -177,6 +180,10 @@ public static class ExtractCommand
                                         memberData[0] == 'T' && memberData[1] == 'I' &&
                                         memberData[2] == 'M' && memberData[3] == '2';
 
+                    bool memberIsExdb = memberData.Length >= 3 &&
+                                        memberData[0] == 'E' && memberData[1] == 'D' &&
+                                        memberData[2] == 'B';
+
                     if (!keepTim2 && memberIsTim2)
                     {
                         try
@@ -193,8 +200,8 @@ public static class ExtractCommand
                                 HasClut = tim2.Images[0].Header.ClutSize > 0,
                                 ClutColors = tim2.Images[0].Header.ClutColors,
                                 ClutType = tim2.Images[0].Header.ClutType,
-                                OriginalSize = memberData.Length, 
-                                
+                                OriginalSize = memberData.Length,
+
                                 FileFormat = tim2.Header.Format,
                                 TimVersion = tim2.Header.Version,
                                 ImageType = tim2.Images[0].Header.ImageType,
@@ -219,6 +226,21 @@ public static class ExtractCommand
                         catch (Exception ex)
                         {
                             Console.WriteLine($"  Warning: TIM2 conversion failed for {pckEntry.Name}: {ex.Message}");
+                            File.WriteAllBytes(memberPath, memberData);
+                        }
+                    }
+                    else if (!keepExdb && memberIsExdb)
+                    {
+                        try
+                        {
+                            string exdbJsonPath = memberPath + ".json";
+                            File.WriteAllText(exdbJsonPath,
+                                JsonConvert.SerializeObject(ExdbConverter.Read(memberData), Formatting.Indented));
+                            sourcePath = exdbJsonPath;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  Warning: EXDB conversion failed for {pckEntry.Name}: {ex.Message}");
                             File.WriteAllBytes(memberPath, memberData);
                         }
                     }
@@ -248,6 +270,34 @@ public static class ExtractCommand
                     OriginalSize = entry.Size
                 });
             }
+            else if (!keepExdb && isExdb)
+            {
+                try
+                {
+                    string exdbJsonPath = outFilePath + ".json";
+                    File.WriteAllText(exdbJsonPath,
+                        JsonConvert.SerializeObject(ExdbConverter.Read(data), Formatting.Indented));
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, exdbJsonPath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  Warning: EXDB conversion failed for {fullPath}: {ex.Message}");
+                    File.WriteAllBytes(outFilePath, data);
+                    manifest.Files.Add(new VfiFileManifest
+                    {
+                        Path = fullPath,
+                        Source = Path.GetRelativePath(outputDir, outFilePath).Replace('\\', '/'),
+                        Compressed = isCompressed,
+                        OriginalSize = entry.Size
+                    });
+                }
+            }
             else if (!keepTim2 && isTim2)
             {
                 try
@@ -264,8 +314,8 @@ public static class ExtractCommand
                         HasClut = tim2.Images[0].Header.ClutSize > 0,
                         ClutColors = tim2.Images[0].Header.ClutColors,
                         ClutType = tim2.Images[0].Header.ClutType,
-                        OriginalSize = data.Length, 
-                        
+                        OriginalSize = data.Length,
+
                         FileFormat = tim2.Header.Format,
                         TimVersion = tim2.Header.Version,
                         ImageType = tim2.Images[0].Header.ImageType,
